@@ -1,3 +1,5 @@
+# TF-deformable-conv
+
 This is a repository for a [Deformable Convolution](https://arxiv.org/abs/1703.06211) operation in Tensorflow. This repo largely borrows cuda codes from [original implementation](https://github.com/msracver/Deformable-ConvNets).
 
 ## Prerequisite
@@ -25,10 +27,9 @@ g++ 4.9.2
 
 - [x] Basic test with original implementation.
 - [x] Make sure gradient work.
-- [x] Simple benchmark
+- [x] Simple benchmark.
 
 
-- [ ] Some demo and visualization
-- [ ] Backward time costs too much
-- [ ] Other ops
-
+- [ ] Some demo and visualization.
+- [ ] Backward time costs too much.
+- [ ] Other ops.
