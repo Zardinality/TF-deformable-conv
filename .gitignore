@@ -99,3 +99,9 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# apple file
+.DS_Store
+
+# vscode
+.vscode
