@@ -664,8 +664,6 @@ class DeformConvBackpropOp : public OpKernel {
     TensorShape col_buffer_shape({conv_in_channels_*filter_rows*filter_cols, out_backprop.dim_size(2), out_backprop.dim_size(3)});
     TensorShape col_buffer_3d_shape({group_, M, N});
     Tensor col_buffer_3d;
-    OP_REQUIRES_OK(context,
-                context->allocate_temp(DataTypeToEnum<T>::value, col_buffer_3d_shape, &col_buffer_3d));
     auto col_buffer_ptr = col_buffer_3d.template flat<T>().data();
     auto weight_3d_shape=TensorShape({group_, K, M});
     const T* weight_3d_ptr = filter_ptr;
@@ -679,15 +677,17 @@ class DeformConvBackpropOp : public OpKernel {
     Tensor* filter_backprop = nullptr;
     OP_REQUIRES_OK(context,
                    context->allocate_output(1, filter.shape(), &filter_backprop));
-    auto filter_backprop_ptr = filter_backprop->template flat<T>().data();    
-    Tensor temp_filter_backprop;
-    OP_REQUIRES_OK(context,
-                   context->allocate_temp(DataTypeToEnum<T>::value, filter.shape(), &temp_filter_backprop));
-    auto temp_filter_backprop_ptr = temp_filter_backprop.template flat<T>().data();    
+    auto filter_backprop_ptr = filter_backprop->template flat<T>().data();
     Tensor* offset_backprop = nullptr;
     OP_REQUIRES_OK(context,
                    context->allocate_output(2, offset.shape(), &offset_backprop));
     auto offset_backprop_ptr = offset_backprop->template flat<T>().data();    
+    OP_REQUIRES_OK(context,
+            context->allocate_temp(DataTypeToEnum<T>::value, col_buffer_3d_shape, &col_buffer_3d));
+    Tensor temp_filter_backprop;
+    OP_REQUIRES_OK(context,
+                   context->allocate_temp(DataTypeToEnum<T>::value, filter.shape(), &temp_filter_backprop));
+    auto temp_filter_backprop_ptr = temp_filter_backprop.template flat<T>().data();    
 
     // If there is nothing to compute, return.
     if (input.shape().num_elements() == 0) {
