@@ -68,7 +68,7 @@ REGISTER_OP("DeformConvOp").Input("x: T")
     TF_RETURN_IF_ERROR(c->GetAttr("strides", &strides));
     if (strides.size() != 4) {
         return errors::InvalidArgument(
-                   "Dilation2D requires the stride attribute to contain 4 values, but "
+                   "Deformconv requires the stride attribute to contain 4 values, but "
                    "got: ",
                    strides.size());
     }
@@ -77,16 +77,20 @@ REGISTER_OP("DeformConvOp").Input("x: T")
     TF_RETURN_IF_ERROR(c->GetAttr("rates", &rates));
     if (rates.size() != 4) {
         return errors::InvalidArgument(
-                   "Dilation2D requires the rates attribute to contain 4 values, but "
+                   "Deformconv requires the rates attribute to contain 4 values, but "
                    "got: ",
                    rates.size());
     }
+    string data_format;
+    TensorFormat data_format_;    
+    TF_RETURN_IF_ERROR(c->GetAttr("data_format", &data_format));
+    FormatFromString(data_format, &data_format_);
+    const int32 stride_rows = GetTensorDim(strides, data_format_, 'H');
+    const int32 stride_cols = GetTensorDim(strides, data_format_, 'W');
 
-    int32 stride_rows = strides[1];
-    int32 stride_cols = strides[2];
+    const int32 rate_rows = GetTensorDim(rates, data_format_, 'H');
+    const int32 rate_cols = GetTensorDim(rates, data_format_, 'W');
 
-    int32 rate_rows = rates[1];
-    int32 rate_cols = rates[2];
 
     int groups;
     TF_RETURN_IF_ERROR(c->GetAttr("num_groups", &groups));
