@@ -146,6 +146,17 @@ struct pureAddTo {
     void operator() (const Device& d, const int n, DType* result_data, const DType* right_data);
 };
 
+template <typename Device, typename DType>
+struct pureSubTo {
+    void operator() (const Device& d, const int n, DType* result_data, const DType* right_data);
+};
+
+// template <typename Device, typename DType>
+// struct setZero {
+//     void operator() (const Device& d, const int n, DType* result_data);
+// };
+
+
 }  // namespace functor
 }  // namespace tensorflow
 #endif  // TENSORFLOW_KERNELS_CONV_OPS_im2col_H_

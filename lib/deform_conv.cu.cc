@@ -436,6 +436,25 @@ __global__ void pureAddToKernel(const int n, DType* result_data, const DType* ri
   }
   
 }
+template <typename DType>
+__global__ void pureSubToKernel(const int n, DType* result_data, const DType* right_data)
+{
+
+  CUDA_1D_KERNEL_LOOP(index, n) {
+      CudaAtomicAdd(result_data+index, -right_data[index]);
+  }
+  
+}
+
+template <typename DType>
+__global__ void setZeroKernel(const int n, DType* result_data)
+{
+
+  CUDA_1D_KERNEL_LOOP(index, n) {
+      *(result_data+index)=DType(0);
+  }
+  
+}
 
 
 namespace functor {
@@ -519,13 +538,18 @@ struct deformable_col2im<GPUDevice, DType>{
                               const TShape& pad, const TShape& stride,
                               const TShape& dilation, const int deformable_group,
                               DType* grad_im) {
-    size_t num_spatial_axes = kernel_shape.size();
-    size_t im_size = ProdShape(im_shape, 1);
-    size_t channel_per_deformable_group = im_shape[1] / deformable_group;
-    size_t num_kernels = ProdShape(col_shape, 0);
+    int num_spatial_axes = kernel_shape.size();
+    int im_size = ProdShape(im_shape, 1);
+    int channel_per_deformable_group = im_shape[1] / deformable_group;
+    int num_kernels = ProdShape(col_shape, 0);
     // num_axes should be smaller than block size
     CudaLaunchConfig config = GetCudaLaunchConfig(num_kernels, d);
     CHECK_LT(num_spatial_axes, config.thread_per_block);
+    // 6 4 52 2 0 0 2 21 1 6 2 2
+    // 6 4 52 2 0 0 2 21 1 6 2 2
+    // LOG(INFO) << im_shape[1]<<' '<<im_shape[2]<<' '<<im_shape[3]<<
+    // kernel_shape[0]<<' '<<kernel_shape[1]<<' '<<pad[0]<<' '<<pad[1]<<' '<<stride[0]<<' '<<stride[1]<<
+    // dilation[0]<<' '<<dilation[1]<<' '<<channel_per_deformable_group<<' '<<col_shape[1]<<' '<<col_shape[2];
     // using namespace mxnet_op;
     switch (num_spatial_axes) {
     case 2:
@@ -629,56 +653,23 @@ struct pureAddTo<GPUDevice, DType>{
     
 };
 
-// template<typename T>
-// void deform_conv_impl(const GPUDevice& d, int num_, const T* in_data_ptr, int input_dim_, const T* offset_ptr, int input_offset_dim_, TShape ishape,
-//                         TShape col_buf_shape, TShape kernel, TShape pad, TShape stride, TShape rates, T* col_buffer_ptr, Tensor* output_4d,
-//                         Tensor weight_3d, Tensor col_buffer, int group_, typename Eigen::array<Eigen::IndexPair<Eigen::DenseIndex>, 1>& contract_pairs){
-//     for (int n = 0; n <num_; ++n) {
-//         // transform image to col_buffer in order to use gemm
-//         deformable_im2col(d, in_data_ptr + n*input_dim_,
-//                           offset_ptr + n*input_offset_dim_, (ishape),
-//                           (col_buf_shape), (kernel), (pad), (stride), (rates), 1,
-//                           col_buffer_ptr);
-//         Tensor output_3d = output_4d->Slice(n, n+1);
-//         for (int g = 0; g <group_; ++g) {
-//             auto weight_3d_slice = weight_3d.Slice(g, g+1);
-//             auto col_buffer_3d_slice = col_buffer.Slice(g, g+1);
-//             auto output_slice = output_3d.Slice(g, g+1).tensor<T, 2>();
-//             output_slice.device(d) = weight_3d_slice.tensor<T, 2>().contract(col_buffer_3d_slice.tensor<T, 2>(), contract_pairs);
-//         }
+template <typename DType>
+struct pureSubTo<GPUDevice, DType>{
+    void operator() (const GPUDevice& d, const int n, DType* result_data, const DType* right_data){
+        CudaLaunchConfig config = GetCudaLaunchConfig(n, d);
+        pureSubToKernel<DType> <<< config.block_count, config.thread_per_block, 0, d.stream() >>>(n, result_data, right_data);
+    }
+    
+};
+// template <typename DType>
+// struct setZero<GPUDevice, DType>{
+//     void operator() (const GPUDevice& d, const int n, DType* result_data){
+//         CudaLaunchConfig config = GetCudaLaunchConfig(n, d);
+//         setZeroKernel<DType> <<< config.block_count, config.thread_per_block, 0, d.stream() >>>(n, result_data);
 //     }
-// }
+    
+// };
 
-// template <>                                                      \
-// void deformable_im2col(const GPUDevice& d, \
-// const DType* data_im, const DType* data_offset,  \
-// const TShape& im_shape, const TShape& col_shape, const TShape& kernel_shape, \
-// const TShape& pad, const TShape& stride, const TShape& rates, \
-// const int deformable_group, DType* data_col); \
-// template <>                                                      \
-// void deformable_col2im(const GPUDevice& d, \
-// const DType* data_col, const DType* data_offset, \
-// const TShape& im_shape, const TShape& col_shape, const TShape& kernel_shape, \
-// const TShape& pad, const TShape& stride, \
-// const TShape& rates, const int deformable_group, \
-// DType* grad_im); \
-// template <>                                                      \
-// void deformable_col2im_coord(const GPUDevice& d, \
-// const DType* data_col, const DType* data_im, const DType* data_offset, const TShape& im_shape, \
-// const TShape& col_shape, const TShape& kernel_shape, \
-// const TShape& pad, const TShape& stride, \
-// const TShape& rates, const int deformable_group, DType* grad_offset);
-
-// #define DECLARE_GPU_SPEC(DType)                                  \
-//     template <>                                                      \
-//     void deform_conv_impl(const GPUDevice& d, int num_, const DType* in_data_ptr, int input_dim_, const DType* offset_ptr, int input_offset_dim_, TShape ishape, \
-//     TShape col_buf_shape, TShape kernel, TShape pad, TShape stride, TShape rates, DType* col_buffer_ptr, Tensor* output_4d, \
-//     Tensor weight_3d, Tensor col_buffer, int group_, typename Eigen::array<Eigen::IndexPair<Eigen::DenseIndex>, 1>& contract_pairs);
-
-// // extern template struct Copy<GPUDevice, T>;
-
-// TF_CALL_GPU_NUMBER_TYPES(DECLARE_GPU_SPEC);
-// #undef DECLARE_GPU_SPEC
 
 }  // namespace functor
 
@@ -687,6 +678,7 @@ struct pureAddTo<GPUDevice, DType>{
     template struct functor::deformable_col2im<GPUDevice, DType>; \
     template struct functor::deformable_col2im_coord<GPUDevice, DType>; \
     template struct functor::pureAddTo<GPUDevice, DType>; \
+    template struct functor::pureSubTo<GPUDevice, DType>; \
     template struct functor::im2col<GPUDevice, DType>;    
     
 // extern template struct Copy<GPUDevice, T>;

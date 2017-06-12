@@ -661,50 +661,56 @@ class DeformConvBackpropOp : public OpKernel {
     int M = kernel_dim_;
     int N = conv_out_spatial_dim_;
     int K = conv_out_channels_ / group_;
-    TensorShape col_buffer_shape({conv_in_channels_*filter_rows*filter_cols, out_backprop.dim_size(2), out_backprop.dim_size(3)});
-    TensorShape col_buffer_3d_shape({group_, M, N});
-    Tensor col_buffer_3d;
-    auto col_buffer_ptr = col_buffer_3d.template flat<T>().data();
-    auto weight_3d_shape=TensorShape({group_, K, M});
-    const T* weight_3d_ptr = filter_ptr;
-    Tensor out_grad_4d;
-    TensorShape out_grad_4d_shape = TensorShape({num_, group_, K, N});
-    const T* out_grad_4d_ptr = out_backprop_ptr;
+
     Tensor* in_backprop = nullptr;
     OP_REQUIRES_OK(context,
                    context->allocate_output(0, input.shape(), &in_backprop));
-    auto in_backprop_ptr = in_backprop->template flat<T>().data();    
+    auto in_backprop_ptr = in_backprop->template flat<T>().data();
     Tensor* filter_backprop = nullptr;
     OP_REQUIRES_OK(context,
                    context->allocate_output(1, filter.shape(), &filter_backprop));
-    auto filter_backprop_ptr = filter_backprop->template flat<T>().data();
+    auto filter_backprop_ptr = filter_backprop->template flat<T>().data();    
+    Tensor temp_filter_backprop;
     Tensor* offset_backprop = nullptr;
     OP_REQUIRES_OK(context,
                    context->allocate_output(2, offset.shape(), &offset_backprop));
     auto offset_backprop_ptr = offset_backprop->template flat<T>().data();    
     OP_REQUIRES_OK(context,
-            context->allocate_temp(DataTypeToEnum<T>::value, col_buffer_3d_shape, &col_buffer_3d));
-    Tensor temp_filter_backprop;
-    OP_REQUIRES_OK(context,
                    context->allocate_temp(DataTypeToEnum<T>::value, filter.shape(), &temp_filter_backprop));
     auto temp_filter_backprop_ptr = temp_filter_backprop.template flat<T>().data();    
-
+    TensorShape col_buffer_shape({conv_in_channels_*filter_rows*filter_cols, out_backprop.dim_size(2), out_backprop.dim_size(3)});
+    TensorShape col_buffer_3d_shape({group_, M, N});
+    Tensor col_buffer_3d;
+    OP_REQUIRES_OK(context,
+                context->allocate_temp(DataTypeToEnum<T>::value, col_buffer_3d_shape, &col_buffer_3d));
+    // auto col_temp = col_buffer_3d.template flat<T>();
+    // col_temp.device(d) = col_temp.constant(T(0));
+    T* col_buffer_ptr = col_buffer_3d.template flat<T>().data();
+    auto weight_3d_shape=TensorShape({group_, K, M});
+    const T* weight_3d_ptr = filter_ptr;
+    Tensor out_grad_4d;
+    TensorShape out_grad_4d_shape = TensorShape({num_, group_, K, N});
+    int out_grad_3d_dim = group_ * K * N;
+    const T* out_grad_4d_ptr = out_backprop_ptr;
     // If there is nothing to compute, return.
     if (input.shape().num_elements() == 0) {
       return;
     }
     TensorShape out_grad_3d_shape = out_grad_4d_shape;
     out_grad_3d_shape.RemoveDim(0);
-    // 96 120
+    // functor::setZero<Device, T>()(d, group_*M*N, col_buffer_ptr);
+    // 32 120 8 3 7  4
+    // 32 120 8 3 7  4
     // LOG(WARNING) << input_offset_dim_<<' ' << input_dim_<<' '<<num_<<' ' << group_<<' ' << K<<' ' <<' ' <<N;
     // 6 4 5
     // LOG(WARNING) << input_shape.dim_size(1)<<' ' << input_shape.dim_size(2)<<' ' << input_shape.dim_size(3);
     // 24 3 4
-    // LOG(WARNING) << out_grad_3d_shape.dim_size(0)<<' ' << out_grad_3d_shape.dim_size(1)<<' ' << out_grad_3d_shape.dim_size(2);
     const Device& d = context->eigen_device<Device>();
     for (int n = 0; n < num_; ++n) {
         functor::LaunchBatchMatMul<T>::Launch(context, weight_3d_shape, out_grad_3d_shape, weight_3d_ptr,
-                                              out_grad_4d_ptr+n*ProdShape(out_backprop_shape, 1), true, false, col_buffer_ptr);
+                                              out_grad_4d_ptr+n*out_grad_3d_dim, true, false, col_buffer_ptr);
+
+    
         // gradient w.r.t. input coordinate data
         functor::deformable_col2im_coord<Device, T>()(d, col_buffer_ptr,
                                 input_ptr + n*input_dim_, offset_ptr + n*input_offset_dim_,
@@ -712,26 +718,27 @@ class DeformConvBackpropOp : public OpKernel {
                                 param_->kernel, param_->pad, param_->stride, param_->rates, 1,
                                 offset_backprop_ptr + n*input_offset_dim_);
 
-        // gradient w.r.t. input data
-        functor::deformable_col2im<Device, T>()(d, col_buffer_ptr,
-                                offset_ptr + n*input_offset_dim_, ToVector(input_shape), ToVector(col_buffer_shape),
-                                param_->kernel, param_->pad, param_->stride, param_->rates, 1,
-                                in_backprop_ptr + n*input_dim_);
+// gradient w.r.t. input data
+functor::deformable_col2im<Device, T>()(d, col_buffer_ptr,
+                        offset_ptr + n*input_offset_dim_, ToVector(input_shape), ToVector(col_buffer_shape),
+                        param_->kernel, param_->pad, param_->stride, param_->rates, 1,
+                        in_backprop_ptr + n*input_dim_);
 
         // gradient w.r.t. weight, dWeight should accumulate across the batch and group
         functor::im2col<Device, T>()(d, input_ptr + n*input_dim_, ToVector(input_shape),
                         ToVector(col_buffer_shape), param_->kernel, param_->pad, param_->stride, param_->rates,
                         col_buffer_ptr);
         if (0 == n) {
-            functor::LaunchBatchMatMul<T>::Launch(context, out_grad_3d_shape, col_buffer_3d_shape, out_grad_4d_ptr+n*ProdShape(out_backprop_shape, 1), 
+            functor::LaunchBatchMatMul<T>::Launch(context, out_grad_3d_shape, col_buffer_3d_shape, out_grad_4d_ptr+n*out_grad_3d_dim, 
                                                   col_buffer_ptr, false, true, filter_backprop_ptr);
         }
         else {
-            functor::LaunchBatchMatMul<T>::Launch(context, out_grad_3d_shape, col_buffer_3d_shape, out_grad_4d_ptr+n*ProdShape(out_backprop_shape, 1), 
+            functor::LaunchBatchMatMul<T>::Launch(context, out_grad_3d_shape, col_buffer_3d_shape, out_grad_4d_ptr+n*out_grad_3d_dim, 
                                                   col_buffer_ptr, false, true, temp_filter_backprop_ptr);
             functor::pureAddTo<Device, T>()(d, ProdShape(filter.shape(), 0), filter_backprop_ptr, temp_filter_backprop_ptr);
         }
     }
+    functor::pureSubTo<Device, T>()(d, ProdShape(input_shape, 0), in_backprop_ptr, input_ptr);
   }
     
 
