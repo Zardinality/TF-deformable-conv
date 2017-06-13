@@ -698,6 +698,12 @@ class DeformConvBackpropOp : public OpKernel {
     }
     TensorShape out_grad_3d_shape = out_grad_4d_shape;
     out_grad_3d_shape.RemoveDim(0);
+    const Device& d = context->eigen_device<Device>();
+    functor::setZero<Device, T>()(d, group_*M*N, col_buffer_ptr);
+    functor::setZero<Device, T>()(d, ProdShape(filter.shape(), 0), temp_filter_backprop_ptr);    
+    functor::setZero<Device, T>()(d, ProdShape(input.shape(), 0), in_backprop_ptr);
+    functor::setZero<Device, T>()(d, ProdShape(filter.shape(), 0), filter_backprop_ptr);
+
     // functor::setZero<Device, T>()(d, group_*M*N, col_buffer_ptr);
     // 32 120 8 3 7  4
     // 32 120 8 3 7  4
@@ -705,7 +711,6 @@ class DeformConvBackpropOp : public OpKernel {
     // 6 4 5
     // LOG(WARNING) << input_shape.dim_size(1)<<' ' << input_shape.dim_size(2)<<' ' << input_shape.dim_size(3);
     // 24 3 4
-    const Device& d = context->eigen_device<Device>();
     for (int n = 0; n < num_; ++n) {
         functor::LaunchBatchMatMul<T>::Launch(context, weight_3d_shape, out_grad_3d_shape, weight_3d_ptr,
                                               out_grad_4d_ptr+n*out_grad_3d_dim, true, false, col_buffer_ptr);
@@ -718,11 +723,11 @@ class DeformConvBackpropOp : public OpKernel {
                                 param_->kernel, param_->pad, param_->stride, param_->rates, 1,
                                 offset_backprop_ptr + n*input_offset_dim_);
 
-// gradient w.r.t. input data
-functor::deformable_col2im<Device, T>()(d, col_buffer_ptr,
-                        offset_ptr + n*input_offset_dim_, ToVector(input_shape), ToVector(col_buffer_shape),
-                        param_->kernel, param_->pad, param_->stride, param_->rates, 1,
-                        in_backprop_ptr + n*input_dim_);
+        // gradient w.r.t. input data
+        functor::deformable_col2im<Device, T>()(d, col_buffer_ptr,
+                                offset_ptr + n*input_offset_dim_, ToVector(input_shape), ToVector(col_buffer_shape),
+                                param_->kernel, param_->pad, param_->stride, param_->rates, 1,
+                                in_backprop_ptr + n*input_dim_);
 
         // gradient w.r.t. weight, dWeight should accumulate across the batch and group
         functor::im2col<Device, T>()(d, input_ptr + n*input_dim_, ToVector(input_shape),
@@ -738,7 +743,7 @@ functor::deformable_col2im<Device, T>()(d, col_buffer_ptr,
             functor::pureAddTo<Device, T>()(d, ProdShape(filter.shape(), 0), filter_backprop_ptr, temp_filter_backprop_ptr);
         }
     }
-    functor::pureSubTo<Device, T>()(d, ProdShape(input_shape, 0), in_backprop_ptr, input_ptr);
+    // functor::pureSubTo<Device, T>()(d, ProdShape(input_shape, 0), in_backprop_ptr, input_ptr);
   }
     
 

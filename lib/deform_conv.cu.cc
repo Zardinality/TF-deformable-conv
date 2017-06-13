@@ -661,14 +661,14 @@ struct pureSubTo<GPUDevice, DType>{
     }
     
 };
-// template <typename DType>
-// struct setZero<GPUDevice, DType>{
-//     void operator() (const GPUDevice& d, const int n, DType* result_data){
-//         CudaLaunchConfig config = GetCudaLaunchConfig(n, d);
-//         setZeroKernel<DType> <<< config.block_count, config.thread_per_block, 0, d.stream() >>>(n, result_data);
-//     }
+template <typename DType>
+struct setZero<GPUDevice, DType>{
+    void operator() (const GPUDevice& d, const int n, DType* result_data){
+        CudaLaunchConfig config = GetCudaLaunchConfig(n, d);
+        setZeroKernel<DType> <<< config.block_count, config.thread_per_block, 0, d.stream() >>>(n, result_data);
+    }
     
-// };
+};
 
 
 }  // namespace functor
@@ -679,6 +679,7 @@ struct pureSubTo<GPUDevice, DType>{
     template struct functor::deformable_col2im_coord<GPUDevice, DType>; \
     template struct functor::pureAddTo<GPUDevice, DType>; \
     template struct functor::pureSubTo<GPUDevice, DType>; \
+    template struct functor::setZero<GPUDevice, DType>; \
     template struct functor::im2col<GPUDevice, DType>;    
     
 // extern template struct Copy<GPUDevice, T>;

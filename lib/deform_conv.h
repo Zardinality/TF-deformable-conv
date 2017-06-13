@@ -151,10 +151,10 @@ struct pureSubTo {
     void operator() (const Device& d, const int n, DType* result_data, const DType* right_data);
 };
 
-// template <typename Device, typename DType>
-// struct setZero {
-//     void operator() (const Device& d, const int n, DType* result_data);
-// };
+template <typename Device, typename DType>
+struct setZero {
+    void operator() (const Device& d, const int n, DType* result_data);
+};
 
 
 }  // namespace functor
