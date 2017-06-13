@@ -22,7 +22,7 @@ g++ 4.9.2
 ## TODO
 
 - [x] Basic test with original implementation.
-- [ ] --Make sure gradient work.--(find a bug in data grad but now I don't have access to gpu machine, not sure whether bug is fixed)
+- [x] --Make sure gradient work.(weird bug happened, data grad used to be correct except for first time calculated, now in my test it works normal, but if you find any bug just open an issue)
 - [x] Simple benchmark.
 
 
