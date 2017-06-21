@@ -19,6 +19,14 @@ g++ 4.9.2
 3. `import lib.deform_conv_op as deform_conv_op` in your python script (make sure PYTHON_PATH was set currectly).
 
 
+## Demo
+
+A simple WGAN script trained on MNIST, to validated the backpropagation.
+
+![](https://ws4.sinaimg.cn/large/006tKfTcgy1fgspsomt2xj30da0d1abl.jpg)
+
+Since offset mostly stays between -1 and 1 there is no need to visualize it. Considering the simplicity of discriminator task, I'm not suprised about it. Might considering bring scaled MNIST in and pretrain regular conv part or change the initializer of offset conv to random normal to make deform matters.
+
 ## TODO
 
 - [x] Basic test with original implementation.
@@ -26,7 +34,7 @@ g++ 4.9.2
 - [x] Simple benchmark.
 
 
-- [ ] Some demo and visualization.
+- [x] Some demo and visualization.
 - [ ] Backward time costs too much.
 - [ ] Other ops.
 
