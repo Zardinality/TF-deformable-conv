@@ -2,6 +2,8 @@
 
 This is a repository for a [Deformable Convolution](https://arxiv.org/abs/1703.06211) operation in Tensorflow. This repo largely borrows cuda codes from [original implementation](https://github.com/msracver/Deformable-ConvNets).
 
+### Check [here](https://github.com/Zardinality/TF_Deformable_Net) for a inplementation of Deformable net in tensorflow.
+
 ## Prerequisite
 
 Tensorflow(with GPU configured)

@@ -56,6 +56,7 @@ REGISTER_OP("DeformConvOp").Input("x: T")
 .Attr("strides: list(int)")
 .Attr("rates: list(int)")
 .Attr("num_groups: int")
+.Attr("deformable_group: int")
 .Attr(GetPaddingAttrString())
 .Attr("data_format: { 'NHWC', 'NCHW' } = 'NCHW' ")
 .SetShapeFn([](InferenceContext* c) {
@@ -63,6 +64,8 @@ REGISTER_OP("DeformConvOp").Input("x: T")
     TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 4, &input_shape));
     ShapeHandle filter_shape;
     TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 4, &filter_shape));
+    ShapeHandle offset_shape;
+    TF_RETURN_IF_ERROR(c->WithRank(c->input(2), 4, &offset_shape));
 
     std::vector<int32> strides;
     TF_RETURN_IF_ERROR(c->GetAttr("strides", &strides));
@@ -94,8 +97,11 @@ REGISTER_OP("DeformConvOp").Input("x: T")
 
     int groups;
     TF_RETURN_IF_ERROR(c->GetAttr("num_groups", &groups));
+    int deform_groups;
+    TF_RETURN_IF_ERROR(c->GetAttr("deformable_group", &deform_groups));
 
     DimensionHandle batch_size_dim = c->Dim(input_shape, 0);
+    DimensionHandle in_depths_dim = c->Dim(input_shape, 1);    
     DimensionHandle in_rows_dim = c->Dim(input_shape, 2);
     DimensionHandle in_cols_dim = c->Dim(input_shape, 3);
     DimensionHandle filter_rows_dim = c->Dim(filter_shape, 2);
@@ -103,9 +109,20 @@ REGISTER_OP("DeformConvOp").Input("x: T")
     DimensionHandle filter_depth_dim = c->Dim(filter_shape, 1);
     DimensionHandle output_depth_dim = c->Dim(filter_shape, 0);
     DimensionHandle multiplied_depth;
+    DimensionHandle depth_per_dfgps;
+    auto filter_row = c->Value(filter_rows_dim);
+    auto filter_col = c->Value(filter_cols_dim);
+    auto offset_dpt = c->Value(c->Dim(offset_shape, 1));
+    if ((offset_dpt%(filter_row*filter_col)!=0)||(offset_dpt/(2*filter_row*filter_col) != deform_groups)) {
+        return errors::InvalidArgument(
+                   "Deformconv requires the offset compatible with filter, but "
+                   "got: ",
+                   c->DebugString(offset_shape));
+    }
     TF_RETURN_IF_ERROR(
         c->Multiply(filter_depth_dim, groups, &multiplied_depth));
-
+    TF_RETURN_IF_ERROR(c->Divide(filter_depth_dim, deform_groups, true, &depth_per_dfgps));
+    TF_RETURN_IF_ERROR(c->Divide(in_depths_dim, deform_groups, true, &depth_per_dfgps));
 
 
     if (!c->ValueKnown(in_rows_dim) || !c->ValueKnown(in_cols_dim) ||
@@ -161,6 +178,7 @@ REGISTER_OP("DeformConvBackpropOp").Input("x: T")
 .Attr("strides: list(int)")
 .Attr("rates: list(int)")
 .Attr("num_groups: int")
+.Attr("deformable_group: int")
 .Attr(GetPaddingAttrString())
 .Attr("data_format: { 'NHWC', 'NCHW' } = 'NCHW' ")
 .SetShapeFn([](InferenceContext* c) {
@@ -367,6 +385,7 @@ public:
         const int64 stride_H = GetTensorDim(strides_, data_format_, 'H');
         const int64 stride_W = GetTensorDim(strides_, data_format_, 'W');
         OP_REQUIRES_OK(context, context->GetAttr("num_groups", &num_groups));
+        OP_REQUIRES_OK(context, context->GetAttr("deformable_group", &deformable_group));        
 
     }
 
@@ -491,7 +510,7 @@ public:
         // transform image to col_buffer_3d in order to use gemm
         functor::deformable_im2col<Device, T>()(d, in_data_ptr + n*input_dim_,
                           offset_ptr + n*input_offset_dim_, ToVector(ishape),
-                          ToVector(col_buf_shape), (this->param_->kernel), (this->param_->pad), (this->param_->stride), (this->param_->rates), 1,
+                          ToVector(col_buf_shape), (this->param_->kernel), (this->param_->pad), (this->param_->stride), (this->param_->rates), deformable_group,
                           col_buffer_3d_ptr);
         // Tensor output_3d = output_4d->Slice(n, n+1);
         T* output_3d_ptr = output_4d_ptr + n * output_dim_;
@@ -572,6 +591,7 @@ public:
         int num_kernels_im2col_;
         int num_kernels_col2im_;
         int num_groups;
+        int deformable_group;
         bool bias_term_;  // has bias term?
         bool is_1x1_;
 
@@ -609,6 +629,7 @@ class DeformConvBackpropOp : public OpKernel {
         const int64 stride_H = GetTensorDim(strides_, data_format_, 'H');
         const int64 stride_W = GetTensorDim(strides_, data_format_, 'W');
         OP_REQUIRES_OK(context, context->GetAttr("num_groups", &num_groups));
+        OP_REQUIRES_OK(context, context->GetAttr("deformable_group", &deformable_group));        
   }
 
   void Compute(OpKernelContext* context) override {
@@ -720,13 +741,13 @@ class DeformConvBackpropOp : public OpKernel {
         functor::deformable_col2im_coord<Device, T>()(d, col_buffer_ptr,
                                 input_ptr + n*input_dim_, offset_ptr + n*input_offset_dim_,
                                 ToVector(input_shape), ToVector(col_buffer_shape),
-                                param_->kernel, param_->pad, param_->stride, param_->rates, 1,
+                                param_->kernel, param_->pad, param_->stride, param_->rates, deformable_group,
                                 offset_backprop_ptr + n*input_offset_dim_);
 
         // gradient w.r.t. input data
         functor::deformable_col2im<Device, T>()(d, col_buffer_ptr,
                                 offset_ptr + n*input_offset_dim_, ToVector(input_shape), ToVector(col_buffer_shape),
-                                param_->kernel, param_->pad, param_->stride, param_->rates, 1,
+                                param_->kernel, param_->pad, param_->stride, param_->rates, deformable_group,
                                 in_backprop_ptr + n*input_dim_);
 
         // gradient w.r.t. weight, dWeight should accumulate across the batch and group
@@ -804,6 +825,7 @@ class DeformConvBackpropOp : public OpKernel {
       int num_kernels_im2col_;
       int num_kernels_col2im_;
       int num_groups;
+      int deformable_group;
       bool bias_term_;  // has bias term?
       bool is_1x1_;
 

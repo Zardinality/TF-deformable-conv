@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import tensorflow as tf
 import os.path as osp
 from tensorflow.python.framework import ops
@@ -28,8 +29,9 @@ def _deform_conv_grad(op, grad):
   num_groups = op.get_attr('num_groups')
   padding = op.get_attr('padding')
   data_format = op.get_attr('data_format')
+  deformable_group = op.get_attr('deformable_group')  
 
   # compute gradient
-  data_grad = deform_conv_grad_op(data, filter, offset, grad, strides, rates, num_groups, padding, data_format)
+  data_grad = deform_conv_grad_op(data, filter, offset, grad, strides, rates, num_groups, deformable_group, padding, data_format)
 
   return data_grad  # List of one Tensor, since we have one input
