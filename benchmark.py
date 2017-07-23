@@ -85,7 +85,7 @@ def run_benchmark():
                                             stddev=1e-1))
         parameters = [kernel]
 
-        last_layer = deform_conv_op.deform_conv_op(images, kernel, offset, strides=[1, 1, 1, 1], rates=[1,1,1,1], padding="SAME", num_groups=1)
+        last_layer = deform_conv_op.deform_conv_op(images, kernel, offset, strides=[1, 1, 1, 1], rates=[1,1,1,1], padding="SAME", num_groups=1, deformable_group=1)
 
         # Build an initialization operation.
         init = tf.global_variables_initializer()

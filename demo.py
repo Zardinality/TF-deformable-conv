@@ -35,7 +35,7 @@ def deform_conv_2d(img, num_outputs, kernel_size=3, stride=2,
         kernel = tf.get_variable(name='d_kernel', shape=(num_outputs, C, kernel_size, kernel_size),
                                  initializer=tf.random_normal_initializer(0, 0.02))
         res = deform_conv_op(img, filter=kernel, offset=offset, rates=[1, 1, 1, 1], padding='SAME',
-                             strides=[1, 1, stride, stride], num_groups=1)
+                             strides=[1, 1, stride, stride], num_groups=1, deformable_group=1)
         if normalizer_fn is not None:
             res = normalizer_fn(res)
         if activation_fn is not None:

@@ -16,7 +16,7 @@ with tf.Session() as sess:
     a = tf.constant(arr, dtype=tf.float32)
     b = tf.constant(np.ones((21,2,2,2), dtype = np.float32))
     c = tf.constant(np.ones((8,8,2,2), dtype = np.float32))
-    result = deform_conv_op.deform_conv_op(a, b, c, strides=[1, 1, 2, 2], rates=[1,1,1,1], padding="VALID", num_groups=3)
+    result = deform_conv_op.deform_conv_op(a, b, c, strides=[1, 1, 2, 2], rates=[1,1,1,1], padding="VALID", num_groups=3, deformable_group=1)
     sm = sess.run(result)
     d = tf.constant(np.ones((8,21,2,2), dtype = np.float32))
     grad = tf.gradients(result, [a, b, c])
