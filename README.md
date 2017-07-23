@@ -17,7 +17,7 @@ g++ 4.9.2
 ## Usage
 
 1. Set up `TF_INC` and `CUDA_HOME`, where `TF_INC` can be set up as  `TF_INC=$(python -c 'import tensorflow as tf; print(tf.sysconfig.get_include())')`. Make sure `CUDA_HOME` be the path where cuda is installed, such as default: `/usr/local/cuda`.
-2. Build the op. If you have Tensorflow source installed, you could copy all cpp files contained in `./lib` and `BUILD` to `$(Tensorflow_source_dir)/tensoflow/core/user_ops`, then run `bazel build --config=opt --config=cuda //tensorflow/core/user_ops:deform_conv.so` in  `$(Tensorflow_source_dir)`. If not, run `./lib/nvcc_complie.sh`and `./lib/g++_complie.sh` in sequence to build `deform_conv.so`.
+2. Build the op. If you have Tensorflow source installed, you could copy all cpp files contained in `./lib` and `BUILD` to `$(Tensorflow_source_dir)/tensoflow/core/user_ops`, then run `bazel build --config=opt --config=cuda //tensorflow/core/user_ops:deform_conv.so` in  `$(Tensorflow_source_dir)`. If not, run `./lib/nvcc_complie.sh`and `./lib/g++_complie.sh` in sequence to build `deform_conv.so`. (If `cuda_config.h` is reported to be missed, check [here](https://github.com/Zardinality/TF-deformable-conv/issues/1))
 3. `import lib.deform_conv_op as deform_conv_op` in your python script (make sure PYTHON_PATH was set currectly).
 
 
