@@ -12,7 +12,21 @@ Cuda 8.0
 
 g++ 4.9.2
 
-*Note*: Only tested on platform where corresponding version of g++ and cuda installed, other version might generally be fine, but may need to modify the compile script.
+*Note*: Only tested on platform where corresponding version of g++ and cuda installed, g++5 might encounter `undefined symbol` problem, It's suggested to reinstall g++4.9 to solve this problem, as pointed out by @cotrane in [this issue](https://github.com/Zardinality/TF-deformable-conv/issues/1). Here are the steps:
+
+- installing gcc-4.9 and g++-4.9
+
+- changing `nvcc_compile.sh` to:
+
+  ```shell
+  nvcc -std=c++11 -ccbin=/usr/bin/g++-4.9 -c -o deform_conv.cu.o deform_conv.cu.cc -I $TF_INC -D GOOGLE_CUDA=1 -x cu -Xcompiler -fPIC -L /usr/local/cuda-8.0/lib64/ --expt-relaxed-constexpr
+  ```
+
+- and changing `g++_complie.sh` to:
+
+  ```shell
+  g++-4.9 -std=c++11 -shared -o deform_conv.so deform_conv.cc deform_conv.cu.o -I TF_INC -fPIC -lcudart -L CUDA_HOME/lib64 -D GOOGLE_CUDA=1 -Wfatal-errors -I $CUDA_HOME/include -D_GLIBCXX_USE_CXX11_ABI=0
+  ```
 
 ## Usage
 
